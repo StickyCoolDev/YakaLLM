@@ -1,7 +1,7 @@
 [project]
 name = "yaka-llm"
-version = "0.1.0"
-description = "Add your description here"
+version = "0.1.1"
+description = "Faster and Smaller alternative to Lanchain"
 readme = "README.md"
 authors = [
     { name = "StickyCoolDev", email = "hujifa.info@gmaill.com" }

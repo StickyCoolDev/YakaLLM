@@ -5,7 +5,8 @@ import inspect
 import urllib.request
 import urllib.error
 from typing import Any, Callable, Dict, List, Optional, Tuple
-
+from .open_ai import ChatGPTModel
+from . import open_ai
 JSONSchema = Dict[str, Any]
 
 def _pytype_to_json_schema(py_type: Any) -> str:
@@ -35,7 +36,7 @@ class GeminiModel:
             '''Add two numbers a and b.''' #This Docstring is used as the description for the tool
             return {"result": a + b}
 
-        text = gm.call([], prompt="Add 5 and 7 using your tools", role="user")
+        text = gm.call([], prompt="Add 58027934 and 7902783 using your tools", role="user")
     """
 
     def __init__(self, model: str, api_key: str, max_iterations: int = 6, sleep_between: float = 0.2):
@@ -305,6 +306,4 @@ class GeminiModel:
         return None
 
 
-__all__ = ["GeminiModel"]
-
-
+__all__ = ["GeminiModel", "ChatGPTModel"]
