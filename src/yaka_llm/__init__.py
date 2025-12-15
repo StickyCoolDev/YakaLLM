@@ -2,32 +2,16 @@ from __future__ import annotations
 import json
 import time
 import inspect
+from typing import Any, Callable, Dict, List, Optional, Tuple
 import urllib.request
 import urllib.error
-from typing import Any, Callable, Dict, List, Optional, Tuple
 from .open_ai import ChatGPTModel
 from . import open_ai
+from .core import _pytype_to_json_schema, BasePrompt, SystemPrompt, UserPrompt, ModelPrompt, normalize_history
 JSONSchema = Dict[str, Any]
 
-def _pytype_to_json_schema(py_type: Any) -> str:
-    """Map simple python annotation types to JSON schema types.
-    Falls back to "string" when unknown.
-    """
-    if py_type in (int, float):
-        return "number"
-    if py_type is bool:
-        return "boolean"
-    if py_type is str:
-        return "string"
-    origin = getattr(py_type, "__origin__", None)
-    if origin is not None:
-        args = getattr(py_type, "__args__", ()) or ()
-        if args:
-            return _pytype_to_json_schema(args[0])
-    return "string"
-
 class GeminiModel:
-    """LLM class for Gemin loop.
+    """Gemini LLM yaka client with tool calling loop.
     How to use:
         gm = GeminiModel("gemini-2.5-flash", api_key="...")
 
@@ -36,7 +20,7 @@ class GeminiModel:
             '''Add two numbers a and b.''' #This Docstring is used as the description for the tool
             return {"result": a + b}
 
-        text = gm.call([], prompt="Add 58027934 and 7902783 using your tools", role="user")
+        text = gm.call([], prompt="Add 58027934 and 7902783")
     """
 
     def __init__(self, model: str, api_key: str, max_iterations: int = 6, sleep_between: float = 0.2):
@@ -53,7 +37,7 @@ class GeminiModel:
 
         Usage:
             @gm.tool
-            def foo(...):
+            def foo():
                 '''Docstring used as the tool description'''
                 ...
 
@@ -233,29 +217,38 @@ class GeminiModel:
             return out
         return {param_names[0]: GeminiModel._convert_simple(args)} if param_names else {}
 
-    def call(self, history: List[str], prompt: str, role: str = "user") -> Optional[str]:
-        """Run the LangChain-like loop.
+    def call(self, history: Optional[List[Any]], prompt: str, role: str = "user") -> Optional[str]:
+        """Run the llm loop.
 
         Args:
-            history: list[str] of previous messages (best-effort: will be prefixed as `User:` lines)
+            history: list of BasePrompt or backwards-compatible formats (List[str], List[dict], ...)
             prompt: the new message to send
             role: role name for the prompt (e.g. "user")
-
-        Returns final assistant text or None.
         """
         self._rebuild_tools_declarations()
 
+        prompts = normalize_history(history)
+
+        if role == "system":
+            prompts.append(SystemPrompt(prompt))
+        elif role in ("model", "assistant"):
+            prompts.append(ModelPrompt(prompt, role=role))
+        else:
+            prompts.append(UserPrompt(prompt))
+
         conversation: List[Dict[str, Any]] = []
-        for h in history:
-            conversation.append({"role": "user", "text": h})
-        conversation.append({"role": role, "text": prompt})
+        for p in prompts:
+            p_role = p.role
+            if p_role == "assistant":
+                p_role = "model"
+            conversation.append({"role": p_role, "text": p.content})
 
         for _iteration in range(self.max_iterations):
             convo_text = ""
             for m in conversation:
                 if m["role"] == "user":
                     convo_text += f"User: {m['text']}\n"
-                elif m["role"] == "assistant":
+                elif m["role"] in ("assistant", "model"):
                     if m.get("function_call"):
                         fc = m["function_call"]
                         convo_text += f"Assistant (function_call): {fc.get('name')} args={json.dumps(fc.get('args'))}\n"
