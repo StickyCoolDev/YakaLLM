@@ -1,6 +1,7 @@
 from typing import Any, List, Dict, Optional
 from dataclasses import dataclass
 
+
 def _pytype_to_json_schema(py_type: Any) -> str:
     if py_type in (int, float):
         return "number"
@@ -19,6 +20,7 @@ def _pytype_to_json_schema(py_type: Any) -> str:
 @dataclass
 class BasePrompt:
     """Base prompt object with role, content."""
+
     role: str
     content: str
 
@@ -41,13 +43,14 @@ class ModelPrompt(BasePrompt):
     Model/assistant prompt. Default role is 'model' -Gemini API.
     You may use role='assistant' if you prefer the OpenAIAPI style.
     """
+
     def __init__(self, content: str, role: str = "model"):
         super().__init__(role, content)
 
 
 def normalize_history(history: Optional[List[Any]]) -> List[BasePrompt]:
     """
-    History normalizer. 
+    History normalizer.
     Takes in:
       - List[str] -> each list item becomes UserPrompt.
       - List[dict] with keys 'role' and 'content' or 'text'

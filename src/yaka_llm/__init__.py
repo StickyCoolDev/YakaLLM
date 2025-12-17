@@ -7,8 +7,17 @@ import urllib.request
 import urllib.error
 from .open_ai import ChatGPTModel
 from . import open_ai
-from .core import _pytype_to_json_schema, BasePrompt, SystemPrompt, UserPrompt, ModelPrompt, normalize_history
+from .core import (
+    _pytype_to_json_schema,
+    BasePrompt,
+    SystemPrompt,
+    UserPrompt,
+    ModelPrompt,
+    normalize_history,
+)
+
 JSONSchema = Dict[str, Any]
+
 
 class GeminiModel:
     """Gemini LLM yaka client with tool calling loop.
@@ -23,7 +32,13 @@ class GeminiModel:
         text = gm.call([], prompt="Add 58027934 and 7902783")
     """
 
-    def __init__(self, model: str, api_key: str, max_iterations: int = 6, sleep_between: float = 0.2):
+    def __init__(
+        self,
+        model: str,
+        api_key: str,
+        max_iterations: int = 6,
+        sleep_between: float = 0.2,
+    ):
         self.model = model
         self.api_key = api_key
         self.max_iterations = max_iterations
@@ -32,7 +47,9 @@ class GeminiModel:
         self._functions: Dict[str, Callable[..., Any]] = {}
         self._tools_declarations: List[Dict[str, Any]] = []
 
-    def tool(self, fn: Optional[Callable] = None, *, name: Optional[str] = None) -> Callable:
+    def tool(
+        self, fn: Optional[Callable] = None, *, name: Optional[str] = None
+    ) -> Callable:
         """Decorator to register a function as a tool the model can call.
 
         Usage:
@@ -54,7 +71,9 @@ class GeminiModel:
             properties: Dict[str, Any] = {}
             required: List[str] = []
             for param_name, param in sig.parameters.items():
-                ann = param.annotation if param.annotation is not inspect._empty else str
+                ann = (
+                    param.annotation if param.annotation is not inspect._empty else str
+                )
                 jtype = _pytype_to_json_schema(ann)
                 properties[param_name] = {"type": jtype}
                 if param.default is inspect._empty:
@@ -85,7 +104,9 @@ class GeminiModel:
             properties: Dict[str, Any] = {}
             required: List[str] = []
             for param_name, param in sig.parameters.items():
-                ann = param.annotation if param.annotation is not inspect._empty else str
+                ann = (
+                    param.annotation if param.annotation is not inspect._empty else str
+                )
                 jtype = _pytype_to_json_schema(ann)
                 properties[param_name] = {"type": jtype}
                 if param.default is inspect._empty:
@@ -112,7 +133,9 @@ class GeminiModel:
         }
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent?key={self.api_key}"
         data = json.dumps(payload).encode("utf-8")
-        req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"}, method="POST")
+        req = urllib.request.Request(
+            url, data=data, headers={"Content-Type": "application/json"}, method="POST"
+        )
         try:
             with urllib.request.urlopen(req, timeout=30) as resp:
                 raw = resp.read().decode("utf-8")
@@ -124,7 +147,9 @@ class GeminiModel:
             raise RuntimeError(f"Network error: {e}")
 
     @staticmethod
-    def _extract_function_call_from_part(part: Any) -> Tuple[Optional[str], Optional[Dict[str, Any]]]:
+    def _extract_function_call_from_part(
+        part: Any,
+    ) -> Tuple[Optional[str], Optional[Dict[str, Any]]]:
         """Return (name, args_dict) if this part includes a function call."""
         candidates = []
         if isinstance(part, dict):
@@ -167,7 +192,11 @@ class GeminiModel:
                 if isinstance(part, dict):
                     if "text" in part:
                         texts.append(part["text"])
-                    elif "content" in part and isinstance(part["content"], dict) and "text" in part["content"]:
+                    elif (
+                        "content" in part
+                        and isinstance(part["content"], dict)
+                        and "text" in part["content"]
+                    ):
                         texts.append(part["content"]["text"])
                     else:
                         if "functionCall" not in part and "function_call" not in part:
@@ -196,10 +225,16 @@ class GeminiModel:
         if args is None:
             return {}
         if isinstance(args, (list, tuple)):
-            return {param_names[i]: args[i] for i in range(min(len(args), len(param_names)))}
+            return {
+                param_names[i]: args[i] for i in range(min(len(args), len(param_names)))
+            }
         if isinstance(args, dict) and all(str(k).isdigit() for k in args.keys()):
             pairs = sorted(((int(k), v) for k, v in args.items()), key=lambda x: x[0])
-            return {param_names[i]: GeminiModel._convert_simple(v) for i, (_, v) in enumerate(pairs) if i < len(param_names)}
+            return {
+                param_names[i]: GeminiModel._convert_simple(v)
+                for i, (_, v) in enumerate(pairs)
+                if i < len(param_names)
+            }
         if isinstance(args, dict):
             out: Dict[str, Any] = {}
             for k, v in args.items():
@@ -215,9 +250,13 @@ class GeminiModel:
                 if name not in out and str(i) in args:
                     out[name] = GeminiModel._convert_simple(args[str(i)])
             return out
-        return {param_names[0]: GeminiModel._convert_simple(args)} if param_names else {}
+        return (
+            {param_names[0]: GeminiModel._convert_simple(args)} if param_names else {}
+        )
 
-    def call(self, history: Optional[List[Any]], prompt: str, role: str = "user") -> Optional[str]:
+    def call(
+        self, history: Optional[List[Any]], prompt: str, role: str = "user"
+    ) -> Optional[str]:
         """Run the llm loop.
 
         Args:
@@ -262,7 +301,6 @@ class GeminiModel:
 
             resp = self._gemini_call_text(convo_text)
 
-
             candidates = resp.get("candidates", []) or []
             function_called = False
             for cand in candidates:
@@ -272,17 +310,30 @@ class GeminiModel:
                     name, args = self._extract_function_call_from_part(part)
                     if name:
                         function_called = True
-                        conversation.append({"role": "assistant", "function_call": {"name": name, "args": args}})
+                        conversation.append(
+                            {
+                                "role": "assistant",
+                                "function_call": {"name": name, "args": args},
+                            }
+                        )
                         fn = self._functions.get(name)
                         if not fn:
-                            tool_result = {"error": f"function '{name}' not implemented locally."}
+                            tool_result = {
+                                "error": f"function '{name}' not implemented locally."
+                            }
                         else:
                             try:
                                 clean_args = self._normalize_args(fn, args)
                                 tool_result = fn(**clean_args)
                             except TypeError as e:
                                 tool_result = {"error": f"argument mismatch: {e}"}
-                        conversation.append({"role": "tool", "name": name, "text": json.dumps(tool_result)})
+                        conversation.append(
+                            {
+                                "role": "tool",
+                                "name": name,
+                                "text": json.dumps(tool_result),
+                            }
+                        )
                         time.sleep(self.sleep_between)
                         break
                 if function_called:

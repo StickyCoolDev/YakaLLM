@@ -4,7 +4,14 @@ import inspect
 from typing import Any, Callable, Dict, List, Optional
 import urllib.request
 import urllib.error
-from .core import _pytype_to_json_schema, BasePrompt, SystemPrompt, UserPrompt, ModelPrompt, normalize_history
+from .core import (
+    _pytype_to_json_schema,
+    BasePrompt,
+    SystemPrompt,
+    UserPrompt,
+    ModelPrompt,
+    normalize_history,
+)
 
 JSONSchema = Dict[str, Any]
 
@@ -30,7 +37,6 @@ class ChatGPTModel:
 
         self._functions: Dict[str, Callable[..., Any]] = {}
         self._tools: List[Dict[str, Any]] = []
-
 
     def tool(self, fn: Optional[Callable] = None, *, name: Optional[str] = None):
         def register(f: Callable):
@@ -72,7 +78,6 @@ class ChatGPTModel:
 
         self._tools = tools
 
-
     def _post(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         data = json.dumps(payload).encode()
         headers = {
@@ -80,7 +85,9 @@ class ChatGPTModel:
             "Authorization": f"Bearer {self.api_key}",
         }
 
-        req = urllib.request.Request(self.url, data=data, headers=headers, method="POST")
+        req = urllib.request.Request(
+            self.url, data=data, headers=headers, method="POST"
+        )
 
         try:
             with urllib.request.urlopen(req, timeout=30) as resp:
@@ -90,7 +97,6 @@ class ChatGPTModel:
             raise RuntimeError(f"HTTP {e.code}: {body}")
         except Exception as e:
             raise RuntimeError(f"Network error: {e}")
-
 
     def _execute_tool(self, name: str, args: Dict[str, Any]) -> Dict[str, Any]:
         fn = self._functions.get(name)
@@ -102,8 +108,9 @@ class ChatGPTModel:
         except Exception as e:
             return {"error": str(e)}
 
-
-    def call(self, history: Optional[List[Any]], prompt: str, role: str = "user") -> Optional[str]:
+    def call(
+        self, history: Optional[List[Any]], prompt: str, role: str = "user"
+    ) -> Optional[str]:
         """
         Run the LLM loop.
         history: List[BasePrompt] OR backwards-compatible formats (List[str], List[dict], List[tuple])
