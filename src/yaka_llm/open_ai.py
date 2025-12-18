@@ -1,26 +1,24 @@
 import json
 import time
 import inspect
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional
 import urllib.request
 import urllib.error
+from .core import (
+    _pytype_to_json_schema,
+    BasePrompt,
+    SystemPrompt,
+    UserPrompt,
+    ModelPrompt,
+    normalize_history,
+)
 
 JSONSchema = Dict[str, Any]
 
 
-def _pytype_to_json_schema(py_type: Any) -> str:
-    if py_type in (int, float):
-        return "number"
-    if py_type is bool:
-        return "boolean"
-    if py_type is str:
-        return "string"
-    return "string"
-
-
 class ChatGPTModel:
     """
-    OpenAI / OpenRouter compatible chat client with tool-calling loop.
+    OpenAI / OpenRouter compatible yaka client with tool-calling loop.
     """
 
     def __init__(
@@ -39,8 +37,6 @@ class ChatGPTModel:
 
         self._functions: Dict[str, Callable[..., Any]] = {}
         self._tools: List[Dict[str, Any]] = []
-
-    # ------------------------------------------------------------------ TOOLS
 
     def tool(self, fn: Optional[Callable] = None, *, name: Optional[str] = None):
         def register(f: Callable):
@@ -82,8 +78,6 @@ class ChatGPTModel:
 
         self._tools = tools
 
-    # ------------------------------------------------------------- HTTP CALL
-
     def _post(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         data = json.dumps(payload).encode()
         headers = {
@@ -91,7 +85,9 @@ class ChatGPTModel:
             "Authorization": f"Bearer {self.api_key}",
         }
 
-        req = urllib.request.Request(self.url, data=data, headers=headers, method="POST")
+        req = urllib.request.Request(
+            self.url, data=data, headers=headers, method="POST"
+        )
 
         try:
             with urllib.request.urlopen(req, timeout=30) as resp:
@@ -101,8 +97,6 @@ class ChatGPTModel:
             raise RuntimeError(f"HTTP {e.code}: {body}")
         except Exception as e:
             raise RuntimeError(f"Network error: {e}")
-
-    # --------------------------------------------------------- TOOL EXECUTION
 
     def _execute_tool(self, name: str, args: Dict[str, Any]) -> Dict[str, Any]:
         fn = self._functions.get(name)
@@ -114,13 +108,32 @@ class ChatGPTModel:
         except Exception as e:
             return {"error": str(e)}
 
-    # ------------------------------------------------------------------ CALL
-
-    def call(self, history: List[str], prompt: str, role: str = "user") -> Optional[str]:
+    def call(
+        self, history: Optional[List[Any]], prompt: str, role: str = "user"
+    ) -> Optional[str]:
+        """
+        Run the LLM loop.
+        history: List[BasePrompt] OR backwards-compatible formats (List[str], List[dict], List[tuple])
+        prompt: the new message content (string)
+        role: role for the new prompt (defaults to "user")
+        """
         self._rebuild_tools()
 
-        messages = [{"role": "user", "content": h} for h in history]
-        messages.append({"role": role, "content": prompt})
+        prompts: List[BasePrompt] = normalize_history(history)
+
+        if role == "system":
+            prompts.append(SystemPrompt(prompt))
+        elif role in ("model", "assistant"):
+            prompts.append(ModelPrompt(prompt, role=role))
+        else:
+            prompts.append(UserPrompt(prompt))
+
+        messages: List[Dict[str, str]] = []
+        for p in prompts:
+            api_role = p.role
+            if api_role == "model":
+                api_role = "assistant"
+            messages.append({"role": api_role, "content": p.content})
 
         for _ in range(self.max_iterations):
             payload = {
@@ -138,7 +151,6 @@ class ChatGPTModel:
             for choice in choices:
                 msg = choice.get("message", {})
 
-                # ---------------- TOOL CALL
                 if "tool_calls" in msg:
                     for call in msg["tool_calls"]:
                         name = call["function"]["name"]
@@ -150,7 +162,7 @@ class ChatGPTModel:
                         messages.append(
                             {
                                 "role": "tool",
-                                "tool_call_id": call["id"],
+                                "tool_call_id": call.get("id"),
                                 "content": json.dumps(result),
                             }
                         )
@@ -161,7 +173,6 @@ class ChatGPTModel:
                         continue
                     break
 
-                # ---------------- FINAL TEXT
                 content = msg.get("content")
                 if content:
                     messages.append(msg)
