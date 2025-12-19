@@ -3,6 +3,7 @@ from dataclasses import dataclass
 
 
 def _pytype_to_json_schema(py_type: Any) -> str:
+    """Convert python type to a json schema"""
     if py_type in (int, float):
         return "number"
     if py_type is bool:

@@ -1,3 +1,7 @@
+"""
+A LLM framework thats tiny and fast.
+"""
+
 from __future__ import annotations
 import json
 import time
@@ -93,8 +97,8 @@ class GeminiModel:
 
         if fn is None:
             return _register
-        else:
-            return _register(fn)
+
+        return _register(fn)
 
     def _rebuild_tools_declarations(self) -> None:
         """Rebuild self._tools_declarations from currently registered functions."""
@@ -131,7 +135,10 @@ class GeminiModel:
             "contents": [{"parts": [{"text": user_text}]}],
             "tools": self._tools_declarations,
         }
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent?key={self.api_key}"
+        url = (
+            f"https://generativelanguage.googleapis.com/v1beta/models/"
+            "{self.model}:generateContent?key={self.api_key}"
+        )
         data = json.dumps(payload).encode("utf-8")
         req = urllib.request.Request(
             url, data=data, headers={"Content-Type": "application/json"}, method="POST"
@@ -282,7 +289,7 @@ class GeminiModel:
                 p_role = "model"
             conversation.append({"role": p_role, "text": p.content})
 
-        for _iteration in range(self.max_iterations):
+        for _ in range(self.max_iterations):
             convo_text = ""
             for m in conversation:
                 if m["role"] == "user":
@@ -290,14 +297,23 @@ class GeminiModel:
                 elif m["role"] in ("assistant", "model"):
                     if m.get("function_call"):
                         fc = m["function_call"]
-                        convo_text += f"Assistant (function_call): {fc.get('name')} args={json.dumps(fc.get('args'))}\n"
+                        convo_text += (
+                            f"Assistant (function_call):"
+                            " {fc.get('name')} args={json.dumps(fc.get('args'))}\n"
+                        )
                     else:
                         convo_text += f"Assistant: {m['text']}\n"
                 elif m["role"] == "tool":
                     name = m.get("name", "tool")
                     convo_text += f"Tool {name} returned: {m['text']}\n"
+                elif m["role"] == "system":
+                    convo_text += f"System: {m['text']}\n"
 
-            convo_text += "\nInstruction: Continue the conversation above. Use the available tools if needed and, if you call a tool, respond with a function call. Otherwise provide the final answer.\n"
+            convo_text += (
+                "\nInstruction: Continue the conversation above."
+                "Use the available tools if needed and, if you call a tool," 
+                " respond with a function call. Otherwise provide the final answer.\n"
+            )
 
             resp = self._gemini_call_text(convo_text)
 
