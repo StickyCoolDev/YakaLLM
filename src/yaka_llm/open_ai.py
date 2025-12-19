@@ -113,9 +113,9 @@ class ChatGPTModel:
     ) -> Optional[str]:
         """
         Run the LLM loop.
-        history: List[BasePrompt] OR backwards-compatible formats (List[str], List[dict], List[tuple])
-        prompt: the new message content (string)
-        role: role for the new prompt (defaults to "user")
+        history: List[BasePrompt] OR backwards-compatible formats
+        prompt: the new message content
+        role: role for the new prompt
         """
         self._rebuild_tools()
 
@@ -148,6 +148,7 @@ class ChatGPTModel:
             resp = self._post(payload)
             choices = resp.get("choices", [])
 
+            tool_called = False
             for choice in choices:
                 msg = choice.get("message", {})
 
@@ -168,15 +169,20 @@ class ChatGPTModel:
                         )
 
                         time.sleep(self.sleep_between)
+                        tool_called = True
+                        break
+                    if tool_called:
                         break
                     else:
                         continue
-                    break
 
                 content = msg.get("content")
                 if content:
                     messages.append(msg)
                     return content
+
+            if tool_called:
+                continue
 
             return None
 
